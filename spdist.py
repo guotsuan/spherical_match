@@ -6,7 +6,7 @@
 #
 # Distributed under terms of the MIT license.
 #
-# Last modified: 2015 Jul 03
+# Last modified: 2015 Jul 06
 
 """
 Modules for tools to find the nearest neighbour or
@@ -141,10 +141,8 @@ def sph_sp(ra1, dec1, ra2, dec2, degree=False):
 
     mod_p1p2= np.outer(mod_p1, mod_p2)
 
-    print mod_p1p2.shape
 
     dot = np.inner(p1, p2)/mod_p1p2
-
 
     angle = np.arccos(dot)
 
@@ -166,12 +164,12 @@ if __name__ == '__main__':
     ra = np.random.rand(1000) * np.pi
     dec = np.random.rand(1000) * np.pi - np.pi/2.0
 
-    ra0, dec0 = [0, 0.1, 0.2], [0, 0.1, 0.2]
-    ra0, dec0 = [0.1, 0.1, 0.1], [0.2, 0.2, 0.2]
+    #ra0, dec0 = [0, 0.1, 0.2], [0, 0.1, 0.2]
+    ra0, dec0 = [0.1, 0.1, 0.1], [-1.3, -1.3, -1.3]
 
     tree = build_sp_kdtree(ra, dec)
 
-    idx = sph_query_ball(tree, ra0,  dec0, [0.8, 0.9, 1.0])
+    idx = sph_query_ball(tree, ra0,  dec0, [1.8, 1.9, 2.0])
 
     for i, idx_now in enumerate(idx):
 
@@ -181,12 +179,23 @@ if __name__ == '__main__':
         #angle = sph_sp(ra[idx_now], dec[idx_now], ra0, dec0)
         #print angle
 
-    idx_sp = sph_query_ball_asp(ra, dec, ra0, dec0, [0.8, 0.9, 1.0])
+    idx_sp = sph_query_ball_asp(ra, dec, ra0, dec0, [1.8, 1.9, 2.0])
 
 
     for i, idx_now in enumerate(idx_sp):
 
         print len(idx_now), 'kdetree: result, angular SP'
+
+
+    for ra_now, dec_now, r in zip(ra0, dec0, [1.8, 1.9, 2.0]):
+        spnow = sph_sp(ra, dec, ra_now, dec_now)
+
+        idx = spnow < r
+        print ra[np.squeeze(idx)].shape, 'brutal resutls: angular SP'
+
+
+
+
 
 
 

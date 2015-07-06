@@ -6,7 +6,7 @@
 #
 # Distributed under terms of the MIT license.
 #
-# Last modified: 2015 Apr 08
+# Last modified: 2015 Jul 03
 
 """
 Modules for tools to find the nearest neighbour or
@@ -57,6 +57,33 @@ def build_sp_kdtree(ra, dec, degree=False):
     return tree
 
 
+def sph_query_ball_asp(ra_all, dec_all, ra_cen, dec_cen, r, degree=False):
+    """
+    Note: r: diamter angles seperation, not 3D distants
+    """
+
+    tree = build_sp_kdtree(ra_all, dec_all, degree=degree)
+
+    idx = sph_query_ball(tree, ra_cen, dec_cen, r, degree=degree)
+
+    idx_result = []
+    if np.array(r).size == 1:
+        r_arr = np.zeros_like(ra_cen) + r
+    else:
+        r_arr = r
+
+    for idx_now, ra_now, dec_now, rnow in zip(idx, ra_cen, dec_cen,
+                                           r_arr):
+        angle_sp = sph_sp(ra_all[idx_now], dec_all[idx_now],
+                            ra_now, dec_now, degree=degree)
+        good_idx = np.squeeze(angle_sp) < rnow
+
+        idx_this = np.array(idx_now)[np.atleast_1d(good_idx)]
+        idx_result.append(idx_this)
+
+
+    return idx_result
+
 
 def sph_query_ball(tree, ra, dec, r, degree=False):
     """
@@ -70,7 +97,14 @@ def sph_query_ball(tree, ra, dec, r, degree=False):
     coords[:, 0] = x
     coords[:, 1] = y
     coords[:, 2] = z
-    idx = tree.query_ball_point(coords, r)
+
+    if np.array(r).size == 1:
+        idx = tree.query_ball_point(coords, r)
+    elif x.shape == np.array(r).shape:
+        idx = []
+        for pnow, rnow in zip(coords, r):
+            idx_now = tree.query_ball_point(pnow, rnow)
+            idx.append(idx_now)
 
     return idx
 
@@ -107,8 +141,10 @@ def sph_sp(ra1, dec1, ra2, dec2, degree=False):
 
     mod_p1p2= np.outer(mod_p1, mod_p2)
 
+    print mod_p1p2.shape
 
     dot = np.inner(p1, p2)/mod_p1p2
+
 
     angle = np.arccos(dot)
 
@@ -127,28 +163,30 @@ def cube_sp(ra1, dec1, ra2, dec2, degree=False):
 if __name__ == '__main__':
 
 
-    ra = np.random.rand(10000000) * np.pi
-    dec = np.random.rand(10000000) * np.pi - np.pi/2.0
+    ra = np.random.rand(1000) * np.pi
+    dec = np.random.rand(1000) * np.pi - np.pi/2.0
 
     ra0, dec0 = [0, 0.1, 0.2], [0, 0.1, 0.2]
+    ra0, dec0 = [0.1, 0.1, 0.1], [0.2, 0.2, 0.2]
 
-    #tree = build_sp_kdtree(ra, dec)
+    tree = build_sp_kdtree(ra, dec)
 
-    #idx = sph_query_ball(tree, ra0,  dec0, 1.2)
+    idx = sph_query_ball(tree, ra0,  dec0, [0.8, 0.9, 1.0])
 
-    #for i, idx_now in enumerate(idx):
-        #all_angle = sph_sp(ra0[i], dec0[i], ra[idx_now], dec[idx_now])
+    for i, idx_now in enumerate(idx):
 
-        #idx = all_angle < 1.2
-        #print all_angle[idx].size, 'kdetree: result'
+        print len(idx_now), 'kdetree: result, 3D distant'
+
+        #print ra0, dec0
+        #angle = sph_sp(ra[idx_now], dec[idx_now], ra0, dec0)
+        #print angle
+
+    idx_sp = sph_query_ball_asp(ra, dec, ra0, dec0, [0.8, 0.9, 1.0])
 
 
-    for i, _ in enumerate(ra0):
-        angles_b = sph_sp(ra0[i], dec0[i], ra, dec)
+    for i, idx_now in enumerate(idx_sp):
 
-        idx = angles_b < 1.2
-
-        print angles_b[idx]. size, 'brutal: result'
+        print len(idx_now), 'kdetree: result, angular SP'
 
 
 

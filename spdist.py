@@ -6,7 +6,7 @@
 #
 # Distributed under terms of the MIT license.
 #
-# Last modified: 2015 Jul 06
+# Last modified: 2015 Jul 13
 
 """
 Modules for tools to find the nearest neighbour or
@@ -17,6 +17,41 @@ from __future__ import division
 import numpy as np
 from scipy.spatial import cKDTree as KDT
 from scipy.spatial.distance import cdist as cdist
+
+
+class gals_tree:
+
+    def __init__(self, ra_all, dec_all, degree=False):
+        self.ra_all = ra_all
+        self.dec_all = dec_all
+        self.tree = build_sp_kdtree(self.ra_all, self.dec_all, degree=degree)
+
+
+    def sph_query_ball_asp(self, ra_cen, dec_cen, r, degree=False):
+        """
+        Note: r: diamter angles seperation, not 3D distants
+        """
+
+        idx = sph_query_ball(self.tree, ra_cen, dec_cen, r, degree=degree)
+
+        idx_result = []
+        if np.array(r).size == 1:
+            r_arr = np.zeros_like(ra_cen) + r
+        else:
+            r_arr = r
+
+        for idx_now, ra_now, dec_now, rnow in zip(idx, ra_cen, dec_cen,
+                                            r_arr):
+            angle_sp = sph_sp(self.ra_all[idx_now], self.dec_all[idx_now],
+                                ra_now, dec_now, degree=degree)
+            good_idx = np.squeeze(angle_sp) < rnow
+
+            idx_this = np.array(idx_now)[np.atleast_1d(good_idx)]
+            idx_result.append(idx_this)
+
+
+        return idx_result
+
 
 def radec2xyz(ra, dec, degree=False):
 
@@ -84,6 +119,31 @@ def sph_query_ball_asp(ra_all, dec_all, ra_cen, dec_cen, r, degree=False):
 
     return idx_result
 
+def sph_query_ball_asp_with_tree(tree, ra_cen, dec_cen, r, degree=False):
+    """
+    Note: r: diamter angles seperation, not 3D distants
+    """
+
+    idx = sph_query_ball(tree, ra_cen, dec_cen, r, degree=degree)
+
+    idx_result = []
+    if np.array(r).size == 1:
+        r_arr = np.zeros_like(ra_cen) + r
+    else:
+        r_arr = r
+
+    for idx_now, ra_now, dec_now, rnow in zip(idx, ra_cen, dec_cen,
+                                           r_arr):
+        angle_sp = sph_sp(ra_all[idx_now], dec_all[idx_now],
+                            ra_now, dec_now, degree=degree)
+        good_idx = np.squeeze(angle_sp) < rnow
+
+        idx_this = np.array(idx_now)[np.atleast_1d(good_idx)]
+        idx_result.append(idx_this)
+
+
+    return idx_result
+
 
 def sph_query_ball(tree, ra, dec, r, degree=False):
     """
@@ -124,6 +184,8 @@ def sph_sp_xyz(x, y, z, ra2, dec2, degree=False):
 
     dot = np.inner(p1, p2)/mod_p1p2
 
+    dot = np.clip(dot, -1.0, 1.0)
+
     angle = np.arccos(dot)
 
     return angle
@@ -144,7 +206,27 @@ def sph_sp(ra1, dec1, ra2, dec2, degree=False):
 
     dot = np.inner(p1, p2)/mod_p1p2
 
+    dot = np.clip(dot, -1.0, 1.0)
+
     angle = np.arccos(dot)
+
+    return angle
+
+
+def sph_sp_d(ra1, dec1, ra2, dec2, degree=False):
+    #x1, y1, z1= radec2xyz(ra1, dec1, degree=degree)
+    #x2, y2, z2= radec2xyz(ra2, dec2, degree=degree)
+
+    ra1 = np.atleast_1d(ra1)
+    dec1 = np.atleast_1d(dec1)
+
+    cosangle = np.sin(dec1 + 0.5*np.pi) * np.sin(dec2 + 0.5*np.pi) * \
+        np.cos(ra1 - ra2) + np.cos(dec1 + 0.5*np.pi) * \
+        np.cos(dec2 + 0.5 *np.pi)
+
+    angle = np.arccos(cosangle)
+
+    print cosangle
 
     return angle
 

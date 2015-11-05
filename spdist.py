@@ -6,7 +6,7 @@
 #
 # Distributed under terms of the MIT license.
 #
-# Last modified: 2015 Oct 27
+# Last modified: 2015 Nov 05
 
 """
 Modules for tools to find the nearest neighbour or
@@ -18,6 +18,8 @@ import numpy as np
 from scipy.spatial import cKDTree as KDT
 from scipy.spatial.distance import cdist as cdist
 
+
+sph_old = False
 
 class gals_tree:
 
@@ -249,6 +251,9 @@ def sph_sp_xyz(x, y, z, ra2, dec2, degree=False):
 
 
     dot = np.inner(p1, p2)/mod_p1p2
+    print 'sph_sp_xyz may be wrong'
+    import sys
+    sys.exit()
 
     dot = np.clip(dot, -1.0, 1.0)
 
@@ -256,7 +261,16 @@ def sph_sp_xyz(x, y, z, ra2, dec2, degree=False):
 
     return angle
 
-def sph_sp(ra1, dec1, ra2, dec2, degree=False):
+def sph_sp(ra1, dec1, ra2, dec2, degree=False, return_diagnoal=False):
+    """
+    np.tensordot will create result (3x3) from input (3) and (3)
+    Fixme: we may want from input [a1, a2, a3] and [b1, b2, b3]
+    into [a1b1, a2b2, a3b3].
+
+    So if ra1.size = 9,  ra2.size =1,  if create (9x1) result.
+    So if ra1.size = 9,  ra2.size =9,  if create (9x9) result.
+    But we may only want 9 results.
+    """
     x1, y1, z1= radec2xyz(ra1, dec1, degree=degree)
     x2, y2, z2= radec2xyz(ra2, dec2, degree=degree)
 
@@ -269,14 +283,28 @@ def sph_sp(ra1, dec1, ra2, dec2, degree=False):
 
     mod_p1p2= np.outer(mod_p1, mod_p2)
 
-    dot = np.zeros(np.asarray(ra1).size)
 
-    for ii, pp in enumerate(p1):
-        dot[ii] = np.dot(pp, p2[0])/mod_p1p2[ii]
+    if sph_old:
+        dot = np.zeros(np.asarray(ra1).size)
+
+        for ii, pp in enumerate(p1):
+            dot[ii] = np.dot(pp, p2[0])/mod_p1p2[ii]
+    else:
+
+        dot = np.tensordot(p1, p2, axes=(1,1)) / mod_p1p2
 
     dot = np.clip(dot, -1.0, 1.0)
 
     angle = np.arccos(dot)
+
+    if dot.shape[0] == dot.shape[1]:
+        if return_diagnoal:
+            return np.diagonal(angle)
+    else:
+        import sys
+        print "cannot return diagonal, input a and a is not the same"
+        sys.exit()
+
 
     return angle
 

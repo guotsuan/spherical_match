@@ -6,7 +6,7 @@
 #
 # Distributed under terms of the MIT license.
 #
-# Last modified: 2015 Jul 13
+# Last modified: 2015 Oct 27
 
 """
 Modules for tools to find the nearest neighbour or
@@ -40,6 +40,38 @@ class gals_tree:
         else:
             r_arr = r
 
+        ra_cen = np.atleast_1d(ra_cen)
+        dec_cen = np.atleast_1d(dec_cen)
+        r_arr = np.atleast_1d(r_arr)
+        for idx_now, ra_now, dec_now, rnow in zip(idx, ra_cen, dec_cen,
+                                            r_arr):
+            angle_sp = sph_sp(self.ra_all[idx_now], self.dec_all[idx_now],
+                                ra_now, dec_now, degree=degree)
+            good_idx = np.squeeze(angle_sp) < rnow
+
+            idx_this = np.array(idx_now)[np.atleast_1d(good_idx)]
+            idx_result.append(idx_this)
+
+
+        return idx_result
+
+
+    def sph_query(self, ra_cen, dec_cen, degree=False):
+        """
+        Note: r: diamter angles seperation, not 3D distants
+        """
+
+        idx = self.tree.query(ra_cen, dec_cen, r, degree=degree)
+
+        idx_result = []
+        if np.array(r).size == 1:
+            r_arr = np.zeros_like(ra_cen) + r
+        else:
+            r_arr = r
+
+        ra_cen = np.atleast_1d(ra_cen)
+        dec_cen = np.atleast_1d(dec_cen)
+        r_arr = np.atleast_1d(r_arr)
         for idx_now, ra_now, dec_now, rnow in zip(idx, ra_cen, dec_cen,
                                             r_arr):
             angle_sp = sph_sp(self.ra_all[idx_now], self.dec_all[idx_now],
@@ -76,6 +108,31 @@ def radec2xyz(ra, dec, degree=False):
     return x, y, z
 
 
+def xyz2radec(x,y,z, degree=False):
+    x = np.asarray(x)
+    y = np.asarray(y)
+    z = np.asarray(z)
+
+    vec = np.vstack((x,y,z)).T
+    mod_vec = np.linalg.norm(vec, axis=1)
+
+    dec = np.arcsin(z / mod_vec)
+    ra = np.arccos(x / mod_vec / np.cos(dec))
+
+
+    if x.ndim == 0:
+        if y < 0:
+            ra = np.pi * 2.0 - ra
+    elif x.ndim > 0:
+        idx = y < 0
+        ra[idx] = np.pi * 2.0 - ra[idx]
+
+    if degree:
+        dec = dec /np.pi *180.
+        ra = ra /np.pi *180.
+
+    return ra,dec
+
 def build_sp_kdtree(ra, dec, degree=False):
     """
     ra and dec are in radian, if not set degree to True
@@ -87,7 +144,7 @@ def build_sp_kdtree(ra, dec, degree=False):
     coords[:, 1] = y
     coords[:, 2] = z
 
-    tree = KDT(coords)
+    tree = KDT(coords, balanced_tree=False)
 
     return tree
 
@@ -100,6 +157,9 @@ def sph_query_ball_asp(ra_all, dec_all, ra_cen, dec_cen, r, degree=False):
     tree = build_sp_kdtree(ra_all, dec_all, degree=degree)
 
     idx = sph_query_ball(tree, ra_cen, dec_cen, r, degree=degree)
+    # import ipdb; ipdb.set_trace()  # XXX BREAKPOINT
+
+
 
     idx_result = []
     if np.array(r).size == 1:
@@ -107,17 +167,23 @@ def sph_query_ball_asp(ra_all, dec_all, ra_cen, dec_cen, r, degree=False):
     else:
         r_arr = r
 
+    ra_cen = np.atleast_1d(ra_cen)
+    dec_cen = np.atleast_1d(dec_cen)
+    r_arr = np.atleast_1d(r_arr)
     for idx_now, ra_now, dec_now, rnow in zip(idx, ra_cen, dec_cen,
                                            r_arr):
         angle_sp = sph_sp(ra_all[idx_now], dec_all[idx_now],
                             ra_now, dec_now, degree=degree)
+
         good_idx = np.squeeze(angle_sp) < rnow
 
+        # print np.squeeze(angle_sp)[good_idx]
         idx_this = np.array(idx_now)[np.atleast_1d(good_idx)]
+        # print id_all[idx_now][np.atleast_1d(good_idx)]
         idx_result.append(idx_this)
 
 
-    return idx_result
+    return idx_result, idx
 
 def sph_query_ball_asp_with_tree(tree, ra_cen, dec_cen, r, degree=False):
     """
@@ -203,8 +269,10 @@ def sph_sp(ra1, dec1, ra2, dec2, degree=False):
 
     mod_p1p2= np.outer(mod_p1, mod_p2)
 
+    dot = np.zeros(np.asarray(ra1).size)
 
-    dot = np.inner(p1, p2)/mod_p1p2
+    for ii, pp in enumerate(p1):
+        dot[ii] = np.dot(pp, p2[0])/mod_p1p2[ii]
 
     dot = np.clip(dot, -1.0, 1.0)
 
@@ -220,13 +288,21 @@ def sph_sp_d(ra1, dec1, ra2, dec2, degree=False):
     ra1 = np.atleast_1d(ra1)
     dec1 = np.atleast_1d(dec1)
 
+    if degree:
+        ra1 = ra1 / 180. * np.pi
+        dec1 = dec1 / 180. * np.pi
+
+        ra2 = ra2 / 180. * np.pi
+        dec2 = dec2 / 180. * np.pi
+
     cosangle = np.sin(dec1 + 0.5*np.pi) * np.sin(dec2 + 0.5*np.pi) * \
         np.cos(ra1 - ra2) + np.cos(dec1 + 0.5*np.pi) * \
         np.cos(dec2 + 0.5 *np.pi)
 
+    cosangle = np.clip(cosangle, -1.0, 1.0)
     angle = np.arccos(cosangle)
 
-    print cosangle
+    # print cosangle
 
     return angle
 
